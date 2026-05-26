@@ -1,0 +1,8 @@
+1. git rm --cached -r . ; git update-ref -d HEAD  : 
+    For the first commit
+    This command removes all files from the staging area (index) without deleting them from the working directory.
+    It also deletes the reference to the current HEAD, effectively untracking all files in the repository. This can be useful when you want to reset the staging area or start fresh with tracking files.
+
+2. git commit --allow-empty -m "Initial commit" :   
+ This command creates an empty commit with the message "Initial commit". 
+ An empty commit is a commit that doesn't change any files in the repository.
