@@ -117,15 +117,15 @@ class TemperatureSensor{
 // };
 
 
-class ShoppingCart{
-    private:
-    unordered_map<string, double>items;
-    bool isCheckout = false;
-    bool isDiscountApplied = false;
+// class ShoppingCart{
+//     private:
+//     unordered_map<string, double>items;
+//     bool isCheckout = false;
+//     bool isDiscountApplied = false;
 
-    public:
-    void addItem(const string )
-}
+//     public:
+//     void addItem(const string )
+// }
 
 
 int main(){
