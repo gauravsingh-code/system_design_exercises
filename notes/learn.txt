@@ -1,0 +1,15 @@
+g++ practices\01_payment.cpp -o payment_app.exe
+payment_app.exe
+
+Member in Base Class	With class Derived : public Base	With class Derived : private Base
+public	                Remains public	                    Becomes private in Derived
+protected	            Remains protected	                Becomes private in Derived
+private	                Not accessible directly	            Not accessible directly
+
+Strategy : 
+contract 
+concreate exercises
+then autopilot
+context(of contract class)
+
+
