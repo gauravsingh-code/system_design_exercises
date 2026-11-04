@@ -13,3 +13,6 @@ then autopilot
 context(of contract class)
 
 
+rd();   // Calls random_device's operator()
+gen();  // Calls mt19937's operator()
+This is called an overloaded function call operator (operator()). 
