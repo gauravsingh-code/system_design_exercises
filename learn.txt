@@ -16,3 +16,47 @@ context(of contract class)
 rd();   // Calls random_device's operator()
 gen();  // Calls mt19937's operator()
 This is called an overloaded function call operator (operator()). 
+
+&  - means we are passing reference , no copy and no ownership
+   - alias to same object
+   - can not be a nullptr
+
+* - we are passing the address of that object
+  - stores the address that persistes beyond the functi call
+  - ownership &  storage
+  - can be nullptr
+
+Simple Rule of Thumb :- 
+Use & when you just look at something.
+Use * when you need to store or own something.
+
+
+--------------------
+// push_back — you create the object OUTSIDE, then COPY it in
+ParkingSpot spot("1-S1", SpotSize::SMALL);   // created here
+spots.push_back(spot);                        // copied into vector
+
+// emplace_back — builds the object DIRECTLY inside the vector
+spots.emplace_back("1-S1", SpotSize::SMALL); // constructed IN-PLACE, no copy
+
+
+----------------
+When we are initializing every class like parking spot and floors in main => violates Law of Demeter& Encapsulation
+So what we do ?
+we implment such that client only calls parkingLot entity and it manages all thing for the client => Facade Pattern
+
+--------
+push_back(move()) : transfer the ownership without creating every member of that object into memory O(1)
+Copy constructor - clones all parkingSpots one by one into memory
+push_back() : creates a copy and then transfer O(N)
+Move constructor - steals the memory pointer of spots. No elements are copied
+
+-------
+Ask yourself one question:
+"Am I passing this item to a function that modifies it or expects a non-const pointer (*)?"
+If YES ➔ Use auto &v (No const).
+If NO (just printing/reading) ➔ Use const auto &v.
+
+
+
+
