@@ -1,5 +1,6 @@
 #include<iostream>
 #include<vector>
+#include<ctime>
 using namespace std;
 
 enum class VehicleType{
@@ -40,6 +41,7 @@ class ParkingSpot{
     
     //here we have a vehicle - aggregation (HAS - A)
     Vehicle *isParkedVehicle = nullptr;
+    time_t parkedAt = 0;  // record entry time here 
 
     public:
     ParkingSpot(string id, SpotSize spotSize) : parkingId(id) , size(spotSize) { };
@@ -56,11 +58,13 @@ class ParkingSpot{
         if(vehicle == nullptr || !isAvailable() || !isSuitable(*vehicle)) return false;
 
         isParkedVehicle = vehicle;
+        parkedAt = time(0) - 120 ; //saved upon entry
         return true;
     }
 
     void unpark(){
         isParkedVehicle = nullptr;
+        parkedAt = 0;
     }
 
     SpotSize getSpotSize(){
@@ -70,6 +74,10 @@ class ParkingSpot{
     string getParkingId(){
         return parkingId;
     }
+
+    time_t getParkedTime() const {return parkedAt ;}
+
+    Vehicle * getParkedVehicle() const { return isParkedVehicle; }
 
 };
 
@@ -100,13 +108,13 @@ class ParkingFloor{
         }
     
 
-    bool parkFloor(Vehicle *v){
+    ParkingSpot* parkFloor(Vehicle *v){
         for(auto &spot : spots){
-            if(spot.park(v)) return 1;
+            if(spot.park(v)) return &spot;
         }
-        return 0;
+        return nullptr;
     }
-    vector<ParkingSpot> getSpots(){
+    vector<ParkingSpot>& getSpots(){
         return spots;
     }
 
@@ -119,10 +127,91 @@ class ParkingFloor{
     }    
 };
 
+class ParkingTicket{
+    private:
+    string ticketId;
+    Vehicle *vehicle = nullptr;
+    ParkingSpot *spot = nullptr;
+    time_t entryTime;
+    time_t exitTime;  // 0 while still parked
+    bool isActive;
+    double amountPaid = 0.0;
+    string paymentMethod = "NONE"; 
+
+    public:
+    ParkingTicket(string id, Vehicle *v, ParkingSpot *s, time_t enTime) 
+        : ticketId(id), vehicle(v), spot(s), isActive(true), entryTime(enTime), exitTime(0) {}
+
+    void closeTicket(double amount, string method){
+        isActive = false;
+        exitTime = time(0); // current time at the time of exiting
+        amountPaid = amount;
+        paymentMethod = method;
+    }
+
+    int getDurationInSeconds() const{
+        if(exitTime == 0) return 0; // vehicle is still parked
+        return static_cast<int>(exitTime - entryTime);
+    }
+
+    // getters 
+    string getTicketId() const { return ticketId; }
+    ParkingSpot* getSpot() const { return spot; }
+    Vehicle* getVehicle() const { return vehicle; }
+    time_t getEntryTime() const { return entryTime; }
+    bool getIsActive() const { return isActive; }
+
+
+    double getAmountPaid() const{ return amountPaid; }
+
+    string getPaymentMethod() const{ return paymentMethod; }
+};
+
+class PaymentStrategy{
+    public:
+    virtual bool processPayment(double amount) = 0;
+    virtual string getMethodName() const = 0;
+    virtual ~PaymentStrategy() = default;
+};
+
+//Concreate strategies
+class UPIPayment : public PaymentStrategy{
+    public:
+    bool processPayment(double amount) override{
+        cout << "💳 Paid $" << amount << " via UPI." << endl;
+        return true;
+    }
+
+    string getMethodName() const override {return "UPI"; }
+};
+
+class CardPayment : public PaymentStrategy{
+    public:
+    bool processPayment(double amount){
+        cout << "💳 Paid $" << amount << " via Credit/Debit Card." << endl;
+        return true;
+    }
+
+    string getMethodName() const override{ return "CARD" ;}
+
+};
+
+class CashPayment : public PaymentStrategy {
+public:
+    bool processPayment(double amount) override {
+        cout << "💵 Paid $" << amount << " via Cash." << endl;
+        return true;
+    }
+
+    string getMethodName() const override{return "CASH"; }
+};
+
 class ParkingLot{
     private:
     //strongly HAS-A relationship (COMPOSITION)
     vector<ParkingFloor> floors;
+    vector<ParkingTicket> tickets;
+    int ticketCounter = 101; 
     
     public:
     //from parking lot we can add a floors dynamically
@@ -130,12 +219,84 @@ class ParkingLot{
         floors.push_back(move(floor));
     }
 
-    bool parkVehicle(Vehicle *vehicle){
-        //find the valid space
+    /*
+    ParkingTicket* parkVehicle(Vehicle *vehicle){
+        //find the valid space across all floors if we get we exit this loop
         for(auto &floor : floors){
-            if(floor.parkFloor(vehicle)) return true ;
+            ParkingSpot * spot = floor.parkFloor(vehicle);
+            //we successfully allocated the spot
+            if(spot != nullptr){
+                string id ="TKT-" + to_string(ticketCounter++);
+                tickets.emplace_back(id, vehicle, spot);
+                return &tickets.back();
+            }
+        }
+        return nullptr;
+    }
+
+    //unpark using the vehicle
+    bool unparkVehicle(ParkingTicket *ticket){
+        if(ticket == nullptr || !ticket->getIsActive()){
+            return false;
+        }
+
+        //1. free the spot
+        ticket->getSpot()->unpark();
+        ticket->closeTicket();
+
+        return true;
+    }
+    */
+
+    bool parkVehicle(Vehicle *vehicle){
+        for(auto &floor : floors){
+            ParkingSpot *spot = floor.parkFloor(vehicle);
+            if(spot != nullptr) return true;  //at park no ticket needed 
         }
         return false;
+    }
+
+    double calculateFee(VehicleType vehicle, int duration){
+        double ratePerSecond = 1.0; // default for bike
+
+        if(vehicle == VehicleType :: CAR) ratePerSecond = 2.0; 
+        if(vehicle == VehicleType :: TRUCK) ratePerSecond = 3.0;
+
+        //minimum base charge is 10
+        return max(10.0, duration * ratePerSecond);
+    }
+
+
+    ParkingTicket* unparkVehicle(Vehicle *vehicle, PaymentStrategy *paymentMethod){
+        if(vehicle == nullptr || paymentMethod == nullptr) return nullptr;
+        //now i need to find the vehicle in all floors and their spots 
+        for(auto &floor : floors){
+            for(auto &spot : floor.getSpots()){
+                if(spot.getParkedVehicle() == vehicle){
+                    time_t entryTime = spot.getParkedTime();
+                    int duration = static_cast<int>(time(0) - entryTime);
+
+                    double amt = calculateFee(vehicle->getVehicleType(), duration);
+
+                    //we attempt of payment
+                    if(!paymentMethod->processPayment(amt)){
+                        cout << "❌ Payment failed! Gate will not open." << endl;
+                        return nullptr; // Vehicle stays parked!
+                    }
+
+                    //payment succedded
+                    string id = "TKT-" + to_string(ticketCounter++);
+                    tickets.emplace_back(id, vehicle, &spot, entryTime);
+                    ParkingTicket* exitTicket = &tickets.back();
+                    exitTicket->closeTicket(amt, paymentMethod->getMethodName()); //sets exiTIme = now()
+
+                    spot.unpark();
+
+                    return exitTicket; //return generated bill 
+                }
+            }
+        }
+        return nullptr;
     }
 
     size_t getTotalFloors() const{
@@ -150,6 +311,10 @@ class ParkingLot{
         return total;
     }
 };
+
+//using Abstract(pure virtuual funtion) strategy patternn for followinf open/close principle
+
+
 
 string printStringVehicleType(VehicleType vehicle){
     switch(vehicle){
@@ -168,25 +333,22 @@ string printStringVehicleType(VehicleType vehicle){
     return "";
 }
 
-class ParkingTicket{
-    private:
-    string ticketId;
-    Vehicle *vehicle = nullptr;
-    ParkingSpot *spot = nullptr;
-    time_t entryTime;
-    bool isActive;
+void printTicket(const ParkingTicket &ticket) {
+    cout << "\n===================================" << endl;
+    cout << "          PARKING TICKET           " << endl;
+    cout << "===================================" << endl;
+    cout << "Ticket ID    : " << ticket.getTicketId() << endl;
+    cout << "Vehicle Reg  : " << ticket.getVehicle()->getRegistratioNo() << endl;
+    cout << "Spot ID      : " << ticket.getSpot()->getParkingId() << endl;
+    cout << "Status       : " << (ticket.getIsActive() ? "ACTIVE (PARKED)" : "COMPLETED") << endl;
+    cout<<"Payment paid: "<<ticket.getAmountPaid()<<endl;
+    cout<<"Paymnet Method: "<<ticket.getPaymentMethod()<<endl;
 
-    public:
-    ParkingTicket(string id , Vehicle *v, ParkingSpot *s) : ticketId(id), vehicle(vehicle), spot(s), isActive(true) {
-        entryTime = time(0); 
+    // If vehicle has already unparked, show duration
+    if (!ticket.getIsActive()) {
+        cout << "Duration     : " << ticket.getDurationInSeconds() << " seconds" << endl;
     }
-
-    string getTicketId() const{  return ticketId;}
-    ParkingSpot* getSpot() const{ return spot;;}
-    Vehicle * getVehicle() const {return vehicle;}
-    time_t getEntryTime() const {return entryTime; }
-    bool isActive() const { return isActive; }
-    void markComplete() { isActive = false; }
+    cout << "===================================\n" << endl;
 }
 
 int main(){
@@ -201,23 +363,63 @@ int main(){
     //     cout<<"Spot Id: "<< spot.getParkingId() << " --- Is Spot Available: "<<spot.isAvailable()<<endl;
     // }
 
+    // Vehicle car("GJ-01-AB-1234", VehicleType::CAR);
 
+    //park and get ticket 
+    // ParkingTicket *t = lot.parkVehicle(&car);
+
+    // if(t != nullptr){
+
+    //     printTicket(*t);
+    //     // cout<<"----CAR IS PARKED----"<<endl;
+    //     // cout<<"TIcket Id: "<<t->getTicketId()<<endl;
+    //     // cout<<"Spot Id: "<<t->getSpot()->getParkingId()<<endl;
+    //     // cout<<-------------------------------
+    // }else{
+    //     cout<<"Parking Lot is full !"<<endl;
+    // }
 
 
     vector<Vehicle>vehicles = {
           Vehicle("GJ-001", VehicleType::MOTORBIKE),
           Vehicle("GJ-002", VehicleType::MOTORBIKE),
-          Vehicle("GJ-003", VehicleType::MOTORBIKE)
+          Vehicle("GJ-003", VehicleType::CAR)
     };
+
   
-    cout << "=== Parking Batch Vehicles ===" << endl;
+  
+    cout << "=== Parking Batch Vehicles (Entry - No Ticket Needed) ===" << endl;
     for (auto &v : vehicles) {
         if (lot.parkVehicle(&v)) {
-            cout << "✅ " << v.getRegistratioNo() << " parked!" << endl;
+            cout << "✅ " << v.getRegistratioNo() << " entered and parked." << endl;
         } else {
             cout << "❌ " << v.getRegistratioNo() << " failed to park! (Lot full)" << endl;
         }
     }
+
+    UPIPayment upi;
+    CardPayment card;
+
+    cout << "\n=== Vehicles Exiting with Payment ===" << endl;
+
+    cout << "\n=== Unparking Batch Vehicles (Tickets Generated at Exit) ===" << endl;
+    for (auto &v : vehicles) {
+        ParkingTicket *receipt = lot.unparkVehicle(&v, &upi);
+        if (receipt != nullptr) {
+            cout << "🎫 Ticket Generated at Exit for: " << v.getRegistratioNo() << endl;
+            printTicket(*receipt);
+        } else {
+            cout << "❌ Vehicle " << v.getRegistratioNo() << " not found in lot!" << endl;
+        }
+    }
+
+
+    // Now you can easily unpark all of them whenever you want:
+    // cout << "\n=== Unparking All Vehicles ===" << endl;
+    // for (auto *t : issuedTickets) {
+    //     lot.unparkVehicle(t);
+    //     printTicket(*t); // Prints with status: COMPLETED and duration
+    // }
 
 
 
@@ -299,6 +501,6 @@ int main(){
 //    printStringVehicleType(type); 
     // cout<<"LARGe: "<<SpotSize::LARGE<<endl;
 
-    cout<<"Hello world"<<endl;
+    cout<<"\nHello world"<<endl;
     return 0;
 }
