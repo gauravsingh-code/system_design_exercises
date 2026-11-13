@@ -58,5 +58,24 @@ If YES ➔ Use auto &v (No const).
 If NO (just printing/reading) ➔ Use const auto &v.
 
 
+-------Factory Method
+1. "I have if-else creation repeated in 10 different files."	➔ 
+    Use Simple Factory to centralize it into 1 file.
+2. "I want other developers to add new products without editing my factory."	➔ 
+    Use Factory Method so subclasses override creation.
+3. "I have related products (Theme, Ecosystem) that must match and never be mixed."	➔ 
+    Use Abstract Factory to create the whole suite together.
 
 
+Level 1: Simple Factory     ──► One centralized class with a switch/case
+Level 2: Factory Method     ──► Polymorphic factories (subclasses decide what to create)
+Level 3: Abstract Factory   ──► Creates FAMILIES of related products together
+
+
+--- FACADE Pattern --
+The Facade Pattern provides a single, 
+simple front-door interface to hide the complexity of an entire subsystem.
+
+
+--LAW of Demeter (Principle of least knowledge)
+The Law of Demeter says: "Talk only to your immediate friends; don't talk to strangers."
